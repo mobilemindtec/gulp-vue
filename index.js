@@ -1,8 +1,8 @@
-const vueParser = require('vue-parser')
 const CoffeeScript = require('coffeescript')
 const through = require('through2')
 const replaceExt = require('replace-ext')
 const PluginError = require('plugin-error')
+const parse5 = require("parse5")
 
 module.exports = function(options){
 
@@ -36,11 +36,15 @@ module.exports = function(options){
     callback(null, file)
 	}
 
+	function isLang(contents, lang){
+		return  new RegExp("lang=[\"']"+lang).test(contents)
+	}
+
 	function compile(file, contents, options){
 
-	  var scriptContents = vueParser.parse(contents, 'script', {lang: 'coffee'})
-	  var templateContents = vueParser.parse(contents, 'template', {lang: 'pug'})
-	  var styleContents = vueParser.parse(contents, 'style', {lang: 'sass'})
+	  var scriptContents = parse(contents, 'script', {lang: 'coffee', emptyExport: false})
+	  var templateContents = parse(contents, 'template', {lang: 'pug', emptyExport: false})
+	  var styleContents = parse(contents, 'style', {lang: 'sass', emptyExport: false})
 
 	  var scriptContents = clearContent(scriptContents)
 	  var templateContents = clearContent(templateContents)
@@ -50,37 +54,96 @@ module.exports = function(options){
 	  var outTemplate = templateContents
 	  var outStyle = styleContents
 
+	  var templateLang = isLang(contents, "pug") ? 'lang="pug"' : ""
+	  var styleLang = isLang(contents,"sass") ? 'lang="sass"' : (isLang(contents, "scss") ? 'lang="scss"' : "")
+	  var scopedStyle = /<style.scoped.>/.test(contents) ? "scoped" : ""
+	  //var scriptLang = isLang(contents, "coffee") ? 'lang="coffee"' : "" 
+
 	  if(options.coffee && options.coffee.compile){
 
-	    var coffeeCompileOptions = Object.assign({
-	      bare: false,
-	      header: false,
-	      sourceRoot: false,
-	      literate: /\.(litcoffee|coffee\.md)$/.test(file.path),
-	      filename: file.path,
-	      sourceFiles: [file.relative],
-	      generatedFile: replaceExtension(file.relative)
-	    }, options.coffee.options)  
+	  	if(isLang(contents, "coffee")){
 
-	  	outScript = CoffeeScript.compile(scriptContents, coffeeCompileOptions)
+		    var coffeeCompileOptions = Object.assign({
+		      bare: false,
+		      header: false,
+		      sourceRoot: false,
+		      literate: /\.(litcoffee|coffee\.md)$/.test(file.path),
+		      filename: file.path,
+		      sourceFiles: [file.relative],
+		      generatedFile: replaceExtension(file.relative)
+		    }, options.coffee.options)  
+
+		  	outScript = CoffeeScript.compile(scriptContents, coffeeCompileOptions)
+	  	}
 		}
 
 	  var output = ""
-	  output += "<template lang='pug'>" + "\n"
+	  output += "<template " + templateLang + ">" + "\n"
 	  output += outTemplate + "\n"
 	  output += "</template>" + "\n"
 	  output += "\n"
 
-	  output += "<script>" + "\n"
+	  output += "<script >" + "\n"
 	  output += outScript + "\n"
 	  output += "</script>" + "\n"
 	  output += "\n"
-	  output += "<style lang='sass' scoped>" + "\n"
+	  output += "<style " + styleLang + " " + scopedStyle + ">" + "\n"
 	  output += outStyle + "\n"
-	  output += "</style lang='sass' scoped>" + "\n"
+	  output += "</style>" + "\n"
 	  return output
 	}	
 
   return through.obj(transform)
 
+}
+
+
+function parse(input, tag, options) {
+    var emptyExport = options && options.emptyExport !== undefined ? options.emptyExport : true;
+    var node = getNode(input, tag, options);
+    var parsed = padContent(node, input);
+    // Add a default export of empty object if target tag script not found.
+    // This fixes a TypeScript issue of "not a module".
+    if (!parsed && tag === 'script' && emptyExport) {
+        parsed = '// tslint:disable\nimport Vue from \'vue\'\nexport default Vue\n';
+    }
+    return parsed;
+}
+
+/**
+ * Pad the space above node with slashes (preserves content line/col positions in a file).
+ */
+function padContent(node, input) {
+    if (!node || !node.__location)
+        return '';
+    var nodeContent = input.substring(node.__location.startTag.endOffset, node.__location.endTag.startOffset);    
+    return nodeContent;
+}
+/**
+ * Get an array of all the nodes (tags).
+ */
+function getNodes(input) {
+    var rootNode = parse5.parseFragment(input, { locationInfo: true });
+    return rootNode.childNodes;
+}/**
+ * Get the node.
+ */
+function getNode(input, tag, options) {
+    // Set defaults.
+    var lang = options ? options.lang : undefined;
+    // Parse the Vue file nodes (tags) and find a match.
+    return getNodes(input).find(function (node) {
+        var tagFound = tag === node.nodeName;
+        var tagHasAttrs = ('attrs' in node);
+        var langEmpty = lang === undefined;
+        var langMatch = false;
+        if (lang) {
+            langMatch = tagHasAttrs && node.attrs.find(function (attr) {
+                return attr.name === 'lang' && Array.isArray(lang)
+                    ? lang.indexOf(attr.value) !== -1
+                    : attr.value === lang;
+            }) !== undefined;
+        }
+        return tagFound && (langEmpty || langMatch);
+    });
 }

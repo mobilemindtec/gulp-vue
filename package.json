@@ -11,7 +11,7 @@
     "plugin-error": "^2.0.1",
     "replace-ext": "^2.0.0",
     "through2": "^4.0.2",
-    "vue-parser": "^1.1.6"
+    "parse5": "^3.0.3"
   },  
   "author": "",
   "license": "ISC"
