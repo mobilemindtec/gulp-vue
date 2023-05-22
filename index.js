@@ -42,9 +42,9 @@ module.exports = function(options){
 
 	function compile(file, contents, options){
 
-	  var scriptContents = parse(contents, 'script', {lang: 'coffee', emptyExport: false})
-	  var templateContents = parse(contents, 'template', {lang: 'pug', emptyExport: false})
-	  var styleContents = parse(contents, 'style', {lang: 'sass', emptyExport: false})
+	  var scriptContents = parse(contents, 'script', {emptyExport: false})
+	  var templateContents = parse(contents, 'template', {emptyExport: false})
+	  var styleContents = parse(contents, 'style', {emptyExport: false})
 
 	  var scriptContents = clearContent(scriptContents)
 	  var templateContents = clearContent(templateContents)
