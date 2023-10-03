@@ -56,7 +56,7 @@ module.exports = function(options){
 
 	  var templateLang = isLang(contents, "pug") ? 'lang="pug"' : ""
 	  var styleLang = isLang(contents,"sass") ? 'lang="sass"' : (isLang(contents, "scss") ? 'lang="scss"' : "")
-	  var scopedStyle = /<style.scoped.>/.test(contents) ? "scoped" : ""
+	  var scopedStyle = /<(.+)?style(.+)scoped(.+)?>/.test(contents) ? "scoped" : ""
 	  //var scriptLang = isLang(contents, "coffee") ? 'lang="coffee"' : "" 
 
 	  if(options.coffee && options.coffee.compile){
